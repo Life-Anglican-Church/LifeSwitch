@@ -1,11 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.lifeproduction.lifeswitch" android:versionCode="7" android:versionName="0.1.0-beta.11">
+    package="org.lifeproduction.lifeswitch" android:versionCode="8" android:versionName="0.1.0-beta.12">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application android:label="LifeSWITCH" android:icon="@drawable/lifeswitch_icon" android:usesCleartextTraffic="true"
         android:allowBackup="false" android:theme="@android:style/Theme.Material.NoActionBar">
+        <provider android:name=".UpdateApkProvider" android:authorities="org.lifeproduction.lifeswitch.updates"
+            android:exported="false" android:grantUriPermissions="true" />
         <activity android:name=".PairingScanActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:screenOrientation="sensorLandscape" android:exported="true">
             <intent-filter>

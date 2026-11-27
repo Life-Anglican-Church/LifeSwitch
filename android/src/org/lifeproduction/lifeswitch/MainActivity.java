@@ -3,6 +3,12 @@ package org.lifeproduction.lifeswitch;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ClipData;
+import android.content.pm.PackageInfo;
+import android.net.Uri;
+import android.provider.Settings;
+import android.widget.Toast;
+import java.io.File;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -33,6 +39,7 @@ import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final int SCAN_PAIRING = 31;
+    private static final int INSTALL_PERMISSION = 32;
     private static final java.util.regex.Pattern PAIRING_QR = java.util.regex.Pattern.compile(
         "lifeswitch://pair\\?host=([0-9.]{7,15})&code=([a-f0-9]{32})");
     private static final int BACKGROUND = Color.rgb(15, 12, 14);
@@ -58,10 +65,16 @@ public final class MainActivity extends Activity {
     private long commandEpoch;
     private boolean awaitingReadback;
     private boolean updateCheckStarted;
-    private AndroidUpdates pendingUpdate;
+    private AndroidUpdates pendingUpdate, installPermissionUpdate;
+    private File verifiedUpdate;
+    private boolean downloadingUpdate;
+    private final ExecutorService updater = Executors.newSingleThreadExecutor();
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        if (saved != null) {
+            installPermissionUpdate = (AndroidUpdates) saved.getSerializable("installPermissionUpdate");
+        }
         host = getPreferences(0).getString("host", "");
         token = getPreferences(0).getString("token", "");
         getWindow().setStatusBarColor(BACKGROUND);
@@ -96,7 +109,7 @@ public final class MainActivity extends Activity {
 
         arm = button("Enable Live control");
         arm.setOnClickListener(v -> {
-            if (armed) { dropLease(); update(); }
+            if (armed) { dropLease(); update(); offerUpdate(); }
             else new AlertDialog.Builder(this).setTitle("Enable Live control?")
                 .setMessage("Use the booth multiview to check Preview and Program. This device will be able to change the ATEM.")
                 .setNegativeButton("Cancel", null)
@@ -160,10 +173,11 @@ public final class MainActivity extends Activity {
         poll.run();
         if (!updateCheckStarted) {
             updateCheckStarted = true;
-            new Thread(() -> {
+            updater.execute(() -> {
                 try {
-                    android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
-                    long version = android.os.Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
+                    PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+                    long version = AndroidUpdates.versionCode(info);
+                    AndroidUpdates.cleanInstalledUpdates(this, version);
                     AndroidUpdates available = AndroidUpdates.check(version);
                     ui.post(() -> {
                         pendingUpdate = available;
@@ -172,7 +186,7 @@ public final class MainActivity extends Activity {
                 } catch (Exception ignored) {
                     // GitHub availability never gates booth control.
                 }
-            }, "LifeSWITCH update check").start();
+            });
         }
     }
 
@@ -182,21 +196,85 @@ public final class MainActivity extends Activity {
     }
 
     private void offerUpdate() {
-        if (pendingUpdate == null || !active || armed || sending || !hasWindowFocus() ||
-                isFinishing() || isDestroyed()) return;
+        if (!active || armed || sending || !hasWindowFocus() || isFinishing() || isDestroyed()) return;
+        if (verifiedUpdate != null) {
+            openInstaller();
+            return;
+        }
+        if (pendingUpdate == null || downloadingUpdate || installPermissionUpdate != null) return;
         AndroidUpdates available = pendingUpdate;
         pendingUpdate = null;
         new AlertDialog.Builder(this)
             .setTitle("LifeSWITCH update available")
-            .setMessage("Version " + available.version + " is available on GitHub.")
+            .setMessage("Version " + available.version + " is available.")
             .setNegativeButton("Later", null)
-            .setPositiveButton("Download", (dialog, choice) -> {
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(available.downloadUrl)));
-                } catch (android.content.ActivityNotFoundException error) {
-                    android.widget.Toast.makeText(this, "No browser available to download the update.", android.widget.Toast.LENGTH_LONG).show();
-                }
-            }).show();
+            .setPositiveButton("Update now", (dialog, choice) -> requestUpdate(available)).show();
+    }
+
+    private void requestUpdate(AndroidUpdates available) {
+        if (getPackageManager().canRequestPackageInstalls()) {
+            downloadUpdate(available);
+            return;
+        }
+        installPermissionUpdate = available;
+        try {
+            Intent permission = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:" + getPackageName()));
+            startActivityForResult(permission, INSTALL_PERMISSION);
+        } catch (RuntimeException error) {
+            installPermissionUpdate = null;
+            Toast.makeText(this, "Android could not open install permission settings.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void downloadUpdate(AndroidUpdates available) {
+        pendingUpdate = null;
+        downloadingUpdate = true;
+        Toast.makeText(this, "Downloading LifeSWITCH update…", Toast.LENGTH_SHORT).show();
+        updater.execute(() -> {
+            try {
+                File file = available.downloadAndVerify(getApplicationContext());
+                ui.post(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    downloadingUpdate = false;
+                    verifiedUpdate = file;
+                    offerUpdate();
+                });
+            } catch (Exception error) {
+                ui.post(() -> {
+                    downloadingUpdate = false;
+                    if (active && !isFinishing() && !isDestroyed()) {
+                        Toast.makeText(this, "Update could not be downloaded or verified. Try again on the next launch.",
+                            Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
+    }
+
+    private void openInstaller() {
+        File file = verifiedUpdate;
+        verifiedUpdate = null;
+        if (!getPackageManager().canRequestPackageInstalls()) {
+            Toast.makeText(this, "Install permission changed. Reopen LifeSWITCH to retry the update.",
+                Toast.LENGTH_LONG).show();
+            return;
+        }
+        Uri uri = UpdateApkProvider.uri(this, file);
+        Intent install = new Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, AndroidUpdates.APK_MIME)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        install.setClipData(ClipData.newRawUri("LifeSWITCH update", uri));
+        try {
+            startActivity(install);
+        } catch (RuntimeException error) {
+            Toast.makeText(this, "Android could not open the update installer.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        out.putSerializable("installPermissionUpdate", installPermissionUpdate);
     }
 
     @Override protected void onPause() {
@@ -207,6 +285,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        updater.shutdownNow();
         polling.shutdownNow();
         actions.shutdown();
         super.onDestroy();
@@ -271,6 +350,18 @@ public final class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == INSTALL_PERMISSION) {
+            AndroidUpdates available = installPermissionUpdate;
+            installPermissionUpdate = null;
+            if (available != null && getPackageManager().canRequestPackageInstalls()) {
+                downloadUpdate(available);
+            } else {
+                pendingUpdate = null;
+                Toast.makeText(this, "Install permission wasn’t granted. You can update on a later launch.",
+                    Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
         if (request != SCAN_PAIRING || result != RESULT_OK || data == null) return;
         String pairing = data.getStringExtra("pairing");
         if (pairing == null || !isPairingQr(pairing)) return;

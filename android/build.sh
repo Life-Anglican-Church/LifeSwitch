@@ -26,5 +26,5 @@ fi
 "$ANDROID_BUILD_TOOLS/zipalign" -f 4 "$work/unsigned.apk" "$work/aligned.apk"
 "$ANDROID_BUILD_TOOLS/apksigner" sign --ks "$LIFESWITCH_KEYSTORE" --ks-key-alias lifeswitch \
     --ks-pass env:LIFESWITCH_KEYSTORE_PASSWORD --v4-signing-enabled false \
-    --out ../releases/LifeSWITCH-Android-0.1.0-beta.11.apk "$work/aligned.apk"
-"$ANDROID_BUILD_TOOLS/apksigner" verify --verbose ../releases/LifeSWITCH-Android-0.1.0-beta.11.apk
+    --out ../releases/LifeSWITCH-Android-0.1.0-beta.12.apk "$work/aligned.apk"
+"$ANDROID_BUILD_TOOLS/apksigner" verify --verbose ../releases/LifeSWITCH-Android-0.1.0-beta.12.apk
