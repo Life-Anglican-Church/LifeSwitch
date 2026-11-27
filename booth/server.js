@@ -19,9 +19,20 @@ let simulated = { preview: 2, program: 1, dsk: false, transitioning: false }
 let lease = null
 let busy = false
 const leaseMs = 5000
+let receivedMessages = 0
+let lastTransportMessage = null
+let lastError = null
 
-atem?.on('error', error => console.error(new Date().toISOString(), error))
-atem?.on('connected', () => { connected = true })
+atem?.on('error', error => {
+  lastError = String(error).slice(0, 220)
+  console.error(new Date().toISOString(), error)
+})
+atem?.on('info', message => { lastTransportMessage = String(message).slice(0, 220) })
+atem?.on('receivedCommands', commands => { receivedMessages += commands.length })
+atem?.on('connected', () => {
+  connected = true
+  console.log('ATEM initialization completed', atem.state?.info?.productIdentifier || '', atem.state?.info?.apiVersion || '')
+})
 atem?.on('disconnected', () => {
   connected = false
   lease = null
@@ -168,7 +179,24 @@ function localStatus(req, res) {
   if (req.method !== 'GET' || req.url !== '/status' || req.socket.remoteAddress !== '127.0.0.1') {
     return send(res, 404, { error: 'Unknown request' })
   }
-  send(res, 200, { simulator: Boolean(config.simulator), connected: Boolean(state()) })
+  const ready = Boolean(state())
+  if (config.simulator) return send(res, 200, { simulator: true, connected: ready })
+  const raw = atem.state
+  send(res, 200, {
+    simulator: false,
+    connected: ready,
+    diagnostics: {
+      initialized: connected,
+      receivedMessages,
+      model: raw?.info?.productIdentifier || null,
+      protocolVersion: raw?.info?.apiVersion || null,
+      mixEffect: Boolean(raw?.video?.mixEffects?.[0]),
+      downstreamKey1: Boolean(raw?.video?.downstreamKeyers?.[0]),
+      physicalInputs: Object.values(raw?.inputs || {}).filter(input => input.portType === Enums.InternalPortType.External).length,
+      lastTransportMessage,
+      lastError,
+    },
+  })
 }
 
 const server = http.createServer((req, res) => {
