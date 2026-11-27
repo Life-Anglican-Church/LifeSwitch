@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.lifeproduction.lifeswitch" android:versionCode="6" android:versionName="0.1.0-beta.10">
+    package="org.lifeproduction.lifeswitch" android:versionCode="7" android:versionName="0.1.0-beta.11">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />

@@ -46,6 +46,8 @@ public final class MainActivity extends Activity {
     private final ExecutorService polling = Executors.newSingleThreadExecutor();
     private final ExecutorService actions = Executors.newSingleThreadExecutor();
     private final ArrayList<Button> sources = new ArrayList<>();
+    private final String[] confirmedSourceNames = new String[8];
+    private final String[] candidateSourceNames = new String[8];
     private LinearLayout root;
     private TextView status, previewName, programName, feedback;
     private Button arm, cut, auto, dsk;
@@ -309,6 +311,10 @@ public final class MainActivity extends Activity {
             if (!validIp(ip)) { address.setError("Enter the booth PC’s IPv4 address"); return; }
             if (!key.matches("[0-9a-f]{32}")) { code.setError("Enter the 32-character pairing code"); return; }
             dropLease();
+            if (!host.equals(ip) || !token.equals(key)) {
+                java.util.Arrays.fill(confirmedSourceNames, null);
+                java.util.Arrays.fill(candidateSourceNames, null);
+            }
             host = ip;
             token = key;
             state = null;
@@ -367,6 +373,7 @@ public final class MainActivity extends Activity {
                             if (!uncertain) feedback.setText("Live control ended. Re-enable when ready.");
                         }
                     }
+                    refreshSourceNames();
                     update();
                 });
             });
@@ -457,7 +464,8 @@ public final class MainActivity extends Activity {
             int id = i + 1;
             Button tile = sources.get(i);
             JSONObject input = findInput(id);
-            setTextIfChanged(tile, input == null ? "Input " + id : id + " · " + input.optString("name", "Input"));
+            String name = confirmedSourceNames[i];
+            setTextIfChanged(tile, name == null ? "Input " + id : id + " · " + name);
             int border = id == preview ? GREEN : id == program ? ACCENT : Color.rgb(106, 54, 66);
             if (!Integer.valueOf(border).equals(tile.getTag())) {
                 tile.setBackground(surface(PANEL, border));
@@ -470,6 +478,22 @@ public final class MainActivity extends Activity {
 
     private static void setTextIfChanged(TextView view, String text) {
         if (!text.contentEquals(view.getText())) view.setText(text);
+    }
+
+    private void refreshSourceNames() {
+        for (int i = 0; i < confirmedSourceNames.length; i++) {
+            JSONObject input = findInput(i + 1);
+            String name = input == null || input.isNull("name") ? "" : input.optString("name").trim();
+            if (name.isEmpty() || name.equals(confirmedSourceNames[i])) {
+                candidateSourceNames[i] = null;
+            } else if (confirmedSourceNames[i] == null || name.equals(candidateSourceNames[i])) {
+                confirmedSourceNames[i] = name;
+                candidateSourceNames[i] = null;
+            } else {
+                // Require two consecutive polls before replacing a name already on screen.
+                candidateSourceNames[i] = name;
+            }
+        }
     }
 
     private JSONObject findInput(int id) {
