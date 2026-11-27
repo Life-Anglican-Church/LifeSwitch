@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.lifeproduction.lifeswitch" android:versionCode="3" android:versionName="0.1.0-beta.4">
+    package="org.lifeproduction.lifeswitch" android:versionCode="4" android:versionName="0.1.0-beta.5">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -7,7 +7,7 @@
     <application android:label="LifeSWITCH" android:icon="@drawable/lifeswitch_icon" android:usesCleartextTraffic="true"
         android:allowBackup="false" android:theme="@android:style/Theme.Material.NoActionBar">
         <activity android:name=".PairingScanActivity" android:exported="false" />
-        <activity android:name=".MainActivity" android:exported="true">
+        <activity android:name=".MainActivity" android:screenOrientation="sensorLandscape" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

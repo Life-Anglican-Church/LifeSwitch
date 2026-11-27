@@ -46,10 +46,10 @@ public final class MainActivity extends Activity {
     private final ExecutorService polling = Executors.newSingleThreadExecutor();
     private final ExecutorService actions = Executors.newSingleThreadExecutor();
     private final ArrayList<Button> sources = new ArrayList<>();
-    private LinearLayout root, grid;
-    private TextView status, tally, feedback, dskStatus;
+    private LinearLayout root;
+    private TextView status, previewName, programName, feedback;
     private Button arm, cut, auto, dsk;
-    private String host = "", token = "", inputLayout = "";
+    private String host = "", token = "";
     private String session = UUID.randomUUID().toString();
     private JSONObject state;
     private boolean active, reading, sending, armed, serviceBusy, simulator, uncertain;
@@ -64,9 +64,10 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.setBackgroundColor(BACKGROUND);
         root = column();
-        root.setPadding(dp(18), dp(16), dp(18), dp(22));
+        root.setPadding(dp(12), dp(5), dp(12), dp(8));
         scroll.setOnApplyWindowInsetsListener((v, insets) -> {
-            v.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+            v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
             return insets.consumeSystemWindowInsets();
         });
         scroll.addView(root);
@@ -78,20 +79,15 @@ public final class MainActivity extends Activity {
         wordmark.setImageResource(R.drawable.lifeswitch_wordmark);
         wordmark.setScaleType(ImageView.ScaleType.FIT_START);
         wordmark.setContentDescription("LifeSWITCH");
-        LinearLayout.LayoutParams wordmarkSize = new LinearLayout.LayoutParams(0, dp(54), 1);
+        LinearLayout.LayoutParams wordmarkSize = new LinearLayout.LayoutParams(dp(126), dp(44));
         wordmarkSize.rightMargin = dp(12);
         header.addView(wordmark, wordmarkSize);
         Button settings = button("Connection");
         settings.setOnClickListener(v -> configure());
+        status = label("Connect to the booth service", 13, MUTED);
+        header.addView(status, new LinearLayout.LayoutParams(0, -2, 1));
         header.addView(settings);
-        add(root, header, 12);
-
-        status = label("Connect to the booth service", 15, WHITE);
-        status.setPadding(dp(14), dp(12), dp(14), dp(12));
-        status.setBackground(surface(PANEL, Color.rgb(105, 51, 63)));
-        add(root, status, 8);
-        tally = label("Preview  •  —     Program  •  —", 17, WHITE);
-        add(root, tally, 14);
+        add(root, header, 5);
 
         arm = button("Enable Live control");
         arm.setOnClickListener(v -> {
@@ -101,14 +97,13 @@ public final class MainActivity extends Activity {
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Enable", (dialog, i) -> command("arm", new JSONObject())).show();
         });
-        add(root, arm, 8);
-        feedback = label("", 14, ACCENT);
-        feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        add(root, feedback, 12);
-
-        add(root, label("Select Preview", 17, WHITE), 5);
-        grid = column();
-        add(root, grid, 10);
+        LinearLayout buses = new LinearLayout(this);
+        LinearLayout preview = bus("Preview", GREEN);
+        LinearLayout program = bus("Program", ACCENT);
+        previewName = label("—", 16, WHITE);
+        programName = label("—", 16, WHITE);
+        add(preview, previewName, 3);
+        add(program, programName, 3);
 
         LinearLayout transitions = new LinearLayout(this);
         cut = button("Cut");
@@ -117,13 +112,38 @@ public final class MainActivity extends Activity {
         auto.setOnClickListener(v -> transition("auto"));
         addWeighted(transitions, cut);
         addWeighted(transitions, auto);
-        add(root, transitions, 16);
+        add(preview, transitions, 0);
+        buses.addView(preview, new LinearLayout.LayoutParams(0, -1, 1));
+        LinearLayout.LayoutParams programSize = new LinearLayout.LayoutParams(0, -1, 1);
+        programSize.leftMargin = dp(6);
+        buses.addView(program, programSize);
+        add(root, buses, 5);
 
-        dskStatus = label("DSK 1  •  Status unavailable", 14, MUTED);
-        add(root, dskStatus, 4);
-        dsk = button("Lower thirds");
+        add(root, label("Select Preview", 13, MUTED), 2);
+        for (int rowNumber = 0; rowNumber < 2; rowNumber++) {
+            LinearLayout row = new LinearLayout(this);
+            for (int column = 0; column < 4; column++) {
+                int id = rowNumber * 4 + column + 1;
+                Button tile = button("Input " + id);
+                tile.setSingleLine(true);
+                tile.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                tile.setOnClickListener(v -> command("preview", fields("source", id)));
+                addWeighted(row, tile);
+                sources.add(tile);
+            }
+            add(root, row, 4);
+        }
+
+        LinearLayout footer = new LinearLayout(this);
+        addWeighted(footer, arm);
+        dsk = button("DSK 1 · Lower thirds");
         dsk.setOnClickListener(v -> command("dsk", fields("onAir", !state.optBoolean("dsk"))));
-        add(root, dsk, 0);
+        addWeighted(footer, dsk);
+        add(root, footer, 3);
+
+        feedback = label("", 13, ACCENT);
+        feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        add(root, feedback, 0);
         update();
     }
 
@@ -153,6 +173,13 @@ public final class MainActivity extends Activity {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         return col;
+    }
+    private LinearLayout bus(String title, int color) {
+        LinearLayout panel = column();
+        panel.setPadding(dp(8), dp(4), dp(8), dp(4));
+        panel.setBackground(surface(PANEL, color));
+        add(panel, label(title, 12, color), 0);
+        return panel;
     }
     private void add(LinearLayout panel, View view, int bottom) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
@@ -370,49 +397,43 @@ public final class MainActivity extends Activity {
     private void update() {
         status.setText(state == null ? (host.isEmpty() ? "Set up a booth connection" : "Switcher status unavailable")
             : simulator ? "Simulator  •  No physical ATEM" : "ATEM connected  •  Watch the booth multiview");
-        tally.setText(state == null ? "Preview  •  —     Program  •  —"
-            : "Preview  •  " + sourceName(state.optInt("preview")) + "     Program  •  " + sourceName(state.optInt("program")));
+        previewName.setText(state == null ? "—" : sourceName(state.optInt("preview")));
+        programName.setText(state == null ? "—" : sourceName(state.optInt("program")));
+        feedback.setVisibility(feedback.length() == 0 ? View.GONE : View.VISIBLE);
         arm.setText(armed ? "Live control on · Turn off" : "Monitor only · Enable Live control");
         arm.setEnabled(armed || state != null && !sending && !serviceBusy);
         boolean enabled = armed && state != null && !sending && !serviceBusy;
         cut.setEnabled(enabled && !state.optBoolean("transitioning"));
         auto.setEnabled(enabled && !state.optBoolean("transitioning"));
         dsk.setEnabled(enabled);
-        dskStatus.setText("DSK 1  •  " + (state == null ? "Status unavailable" : state.optBoolean("dsk") ? "On air" : "Off air"));
-        dsk.setText(state == null ? "Lower thirds" : state.optBoolean("dsk") ? "Hide lower thirds" : "Show lower thirds");
-        JSONArray inputs = state == null ? null : state.optJSONArray("inputs");
-        if (inputs != null && !inputs.toString().equals(inputLayout)) {
-            inputLayout = inputs.toString();
-            sources.clear();
-            grid.removeAllViews();
-            int columns = getResources().getConfiguration().screenWidthDp >= 600 ? 4 : 2;
-            LinearLayout row = null;
-            for (int i = 0; i < inputs.length(); i++) {
-                if (i % columns == 0) { row = new LinearLayout(this); add(grid, row, 5); }
-                JSONObject input = inputs.optJSONObject(i);
-                int id = input.optInt("id");
-                Button tile = button(input.optString("name"));
-                tile.setTag(id);
-                tile.setOnClickListener(v -> command("preview", fields("source", id)));
-                addWeighted(row, tile);
-                sources.add(tile);
-            }
-        }
-        for (Button tile : sources) {
-            boolean selected = state != null && ((Integer) tile.getTag()) == state.optInt("preview");
-            tile.setBackground(surface(PANEL, selected ? GREEN : Color.rgb(106, 54, 66)));
-            tile.setSelected(selected);
-            tile.setEnabled(enabled);
+        dsk.setText("DSK 1 · Lower thirds" + (state == null ? ""
+            : state.optBoolean("dsk") ? " · On air" : " · Off air"));
+        int preview = state == null ? -1 : state.optInt("preview");
+        int program = state == null ? -1 : state.optInt("program");
+        for (int i = 0; i < sources.size(); i++) {
+            int id = i + 1;
+            Button tile = sources.get(i);
+            JSONObject input = findInput(id);
+            tile.setText(input == null ? "Input " + id : id + " · " + input.optString("name", "Input"));
+            int border = id == preview ? GREEN : id == program ? ACCENT : Color.rgb(106, 54, 66);
+            tile.setBackground(surface(PANEL, border));
+            tile.setSelected(id == preview);
+            tile.setEnabled(enabled && input != null);
         }
     }
 
-    private String sourceName(int id) {
-        JSONArray inputs = state.optJSONArray("inputs");
+    private JSONObject findInput(int id) {
+        JSONArray inputs = state == null ? null : state.optJSONArray("inputs");
         for (int i = 0; inputs != null && i < inputs.length(); i++) {
             JSONObject item = inputs.optJSONObject(i);
-            if (item.optInt("id") == id) return item.optString("name");
+            if (item != null && item.optInt("id") == id) return item;
         }
-        return "Source " + id;
+        return null;
+    }
+
+    private String sourceName(int id) {
+        JSONObject input = findInput(id);
+        return input == null ? "Source " + id : input.optString("name", "Input " + id);
     }
 
     private static final class Refused extends IOException {
