@@ -2,6 +2,7 @@ package org.lifeproduction.lifeswitch;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -31,6 +32,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
+    private static final int SCAN_PAIRING = 31;
+    private static final java.util.regex.Pattern PAIRING_QR = java.util.regex.Pattern.compile(
+        "lifeswitch://pair\\?host=([0-9.]{7,15})&code=([a-f0-9]{32})");
     private static final int BACKGROUND = Color.rgb(15, 12, 14);
     private static final int PANEL = Color.rgb(43, 24, 31);
     private static final int ACCENT = Color.rgb(255, 103, 122);
@@ -189,22 +193,46 @@ public final class MainActivity extends Activity {
         return view;
     }
 
-    private void configure() {
+    static boolean isPairingQr(String value) {
+        java.util.regex.Matcher code = PAIRING_QR.matcher(value);
+        return code.matches() && validIp(code.group(1));
+    }
+
+    @Override protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request != SCAN_PAIRING || result != RESULT_OK || data == null) return;
+        String pairing = data.getStringExtra("pairing");
+        if (pairing == null || !isPairingQr(pairing)) return;
+        java.util.regex.Matcher code = PAIRING_QR.matcher(pairing);
+        if (code.matches()) configure(code.group(1), code.group(2));
+    }
+
+    private void configure() { configure(host, token); }
+
+    private void configure(String suggestedHost, String suggestedToken) {
         LinearLayout form = column();
         form.setPadding(dp(20), 0, dp(20), 0);
         EditText address = new EditText(this);
         address.setHint("Booth PC IPv4 address");
         address.setSingleLine();
-        address.setText(host);
+        address.setText(suggestedHost);
         add(form, address, 6);
         EditText code = new EditText(this);
         code.setHint("Pairing code");
         code.setSingleLine();
         code.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        code.setText(token);
+        code.setText(suggestedToken);
         add(form, code, 6);
+        Button scan = button("Scan booth QR");
+        add(form, scan, 6);
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Booth connection")
             .setView(form).setNegativeButton("Cancel", null).setPositiveButton("Connect", null).create();
+        scan.setOnClickListener(view -> {
+            dropLease();
+            update();
+            dialog.dismiss();
+            startActivityForResult(new Intent(this, PairingScanActivity.class), SCAN_PAIRING);
+        });
         dialog.show();
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String ip = address.getText().toString().trim();
@@ -222,7 +250,7 @@ public final class MainActivity extends Activity {
             update();
         });
     }
-    private boolean validIp(String value) {
+    private static boolean validIp(String value) {
         String[] parts = value.split("\\.", -1);
         if (parts.length != 4) return false;
         for (String part : parts) {

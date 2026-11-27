@@ -164,7 +164,15 @@ async function handle(req, res) {
   }
 }
 
+function localStatus(req, res) {
+  if (req.method !== 'GET' || req.url !== '/status' || req.socket.remoteAddress !== '127.0.0.1') {
+    return send(res, 404, { error: 'Unknown request' })
+  }
+  send(res, 200, { simulator: Boolean(config.simulator), connected: Boolean(state()) })
+}
+
 const server = http.createServer((req, res) => {
+  if (config.bind === '127.0.0.1' && req.url === '/status') return localStatus(req, res)
   handle(req, res).catch(error => {
     console.error(error.message)
     if (!res.headersSent) send(res, 500, { error: 'Booth service error' })
@@ -174,4 +182,9 @@ server.requestTimeout = 5000
 server.listen(config.port || 8765, config.bind, () => {
   console.log('LifeSWITCH listening at', server.address(), config.simulator ? 'SIMULATOR' : 'ATEM ' + config.atem)
 })
+if (config.bind !== '127.0.0.1') {
+  const statusServer = http.createServer(localStatus)
+  statusServer.on('error', error => console.error('Local status:', error.message))
+  statusServer.listen(config.port || 8765, '127.0.0.1')
+}
 atem?.connect(config.atem).catch(error => console.error(error))

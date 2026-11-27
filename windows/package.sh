@@ -12,18 +12,20 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 bundle="$work/LifeSWITCH-Booth"
 mkdir -p "$bundle/booth" "$bundle/runtime" releases
-cp windows/Install-LifeSWITCH.ps1 windows/Uninstall-LifeSWITCH.ps1 windows/*.xml windows/WinSW-LICENSE.txt "$bundle/"
+cp windows/Install-LifeSWITCH.ps1 windows/Uninstall-LifeSWITCH.ps1 windows/Booth-Management.ps1 windows/*.xml windows/WinSW-LICENSE.txt "$bundle/"
 cp README.md "$bundle/"
 cp "$LIFESWITCH_WINSW_EXE" "$bundle/LifeSWITCH-Service.exe"
 for asset in node.exe LICENSE; do
     unzip -p "$LIFESWITCH_NODE_ZIP" "node-v*-win-x64/$asset" >"$bundle/runtime/$asset"
 done
 node booth/disable-retransmit.js
-cp booth/server.js booth/package*.json "$bundle/booth/"
+cp booth/server.js booth/pairing-qr.js booth/package*.json "$bundle/booth/"
 cp -R booth/node_modules "$bundle/booth/"
 rm -f "$bundle/booth/node_modules/.bin"/*
 if [[ "$format" == exe ]]; then
-    cp windows/Setup-LifeSWITCH.ps1 "$bundle/"
+    cp windows/Setup-LifeSWITCH.ps1 windows/LifeSWITCH-Tray.ps1 "$bundle/"
+    "${PYTHON:-python3}" -c 'from PIL import Image; import sys; Image.open(sys.argv[1]).save(sys.argv[2], sizes=[(16,16), (24,24), (32,32), (48,48), (256,256)])' \
+        android/res/drawable-nodpi/lifeswitch_icon.png "$bundle/LifeSWITCH.ico"
     "${MAKENSIS:-makensis}" -WX "-DPAYLOAD_DIR=$bundle" \
         "-DSETUP_OUTPUT=$work/LifeSWITCH-Setup.exe" windows/LifeSWITCH-Setup.nsi
     mv "$work/LifeSWITCH-Setup.exe" releases/

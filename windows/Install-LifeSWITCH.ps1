@@ -12,16 +12,7 @@ $target = Join-Path $env:ProgramFiles 'LifeSWITCH'
 $logs = Join-Path $env:ProgramData 'LifeSWITCH\Logs'
 $rule = 'LifeSWITCHBooth8765'
 
-function Confirm-IPv4([string] $text) {
-    $address = $null
-    if ($text -notmatch '^\d{1,3}(\.\d{1,3}){3}$' -or
-        -not [Net.IPAddress]::TryParse($text, [ref]$address) -or
-        $address.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork -or
-        $address.ToString() -ne $text -or [Net.IPAddress]::IsLoopback($address) -or
-        $address.Equals([Net.IPAddress]::Any)) {
-        throw "Enter a local IPv4 address in the form 192.168.1.20."
-    }
-}
+. (Join-Path $PSScriptRoot 'Booth-Management.ps1')
 
 if (-not [Environment]::Is64BitProcess -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
     throw 'Use 64-bit Windows PowerShell on an x64 Windows PC.'
@@ -79,18 +70,7 @@ try {
         -Program (Join-Path $target 'runtime\node.exe') | Out-Null
     $firewall = $true
     Start-Service -Name $service
-    $ready = $false
-    for ($attempt = 0; $attempt -lt 10 -and -not $ready; $attempt++) {
-        try {
-            $headers = @{
-                Authorization = "Bearer $token"
-                'X-LifeSWITCH-Session' = [guid]::NewGuid().ToString()
-            }
-            $result = Invoke-RestMethod -Uri "http://${BoothAddress}:8765/state" -Headers $headers -TimeoutSec 2
-            $ready = $null -ne $result
-        } catch { Start-Sleep -Milliseconds 400 }
-    }
-    if (-not $ready) { throw "The service did not answer. Check $logs." }
+    Wait-BoothService
 } catch {
     if ($firewall) { Remove-NetFirewallRule -Name $rule -ErrorAction SilentlyContinue }
     if ($registered) {
