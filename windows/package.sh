@@ -26,6 +26,8 @@ if [[ "$format" == exe ]]; then
     cp windows/Setup-LifeSWITCH.ps1 windows/LifeSWITCH-Tray.ps1 "$bundle/"
     "${PYTHON:-python3}" -c 'from PIL import Image; import sys; Image.open(sys.argv[1]).save(sys.argv[2], sizes=[(16,16), (24,24), (32,32), (48,48), (256,256)])' \
         android/res/drawable-nodpi/lifeswitch_icon.png "$bundle/LifeSWITCH.ico"
+    "${MAKENSIS:-makensis}" -WX "-DTRAY_OUTPUT=$bundle/LifeSWITCH-Tray.exe" \
+        "-DTRAY_ICON=$bundle/LifeSWITCH.ico" windows/LifeSWITCH-Tray.nsi
     "${MAKENSIS:-makensis}" -WX "-DPAYLOAD_DIR=$bundle" \
         "-DSETUP_OUTPUT=$work/LifeSWITCH-Setup.exe" windows/LifeSWITCH-Setup.nsi
     mv "$work/LifeSWITCH-Setup.exe" releases/

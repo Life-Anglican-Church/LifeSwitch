@@ -7,11 +7,11 @@ RequestExecutionLevel admin
 SilentInstall silent
 InstallDir "$PROGRAMFILES64\LifeSWITCH"
 Icon "${PAYLOAD_DIR}\LifeSWITCH.ico"
-VIProductVersion "0.1.0.7"
+VIProductVersion "0.1.0.8"
 VIAddVersionKey "ProductName" "LifeSWITCH Booth"
 VIAddVersionKey "FileDescription" "LifeSWITCH Booth Setup"
-VIAddVersionKey "FileVersion" "0.1.0 beta.7"
-VIAddVersionKey "ProductVersion" "0.1.0 beta.7"
+VIAddVersionKey "FileVersion" "0.1.0 beta.8"
+VIAddVersionKey "ProductVersion" "0.1.0 beta.8"
 VIAddVersionKey "CompanyName" "Life Production Suite"
 VIAddVersionKey "LegalCopyright" "Life Production Suite"
 SetCompressor /SOLID lzma
@@ -48,6 +48,7 @@ Section Install
     File "${PAYLOAD_DIR}\Setup-LifeSWITCH.ps1"
     File "${PAYLOAD_DIR}\Booth-Management.ps1"
     File "${PAYLOAD_DIR}\LifeSWITCH-Tray.ps1"
+    File "${PAYLOAD_DIR}\LifeSWITCH-Tray.exe"
     File "${PAYLOAD_DIR}\LifeSWITCH.ico"
     SetOutPath "$INSTDIR\booth"
     File "${PAYLOAD_DIR}\booth\pairing-qr.js"
@@ -57,14 +58,14 @@ Section Install
     WriteUninstaller "$INSTDIR\Uninstall-LifeSWITCH.exe"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "LifeSWITCH Booth"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall-LifeSWITCH.exe"'
-    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "0.1.0 beta.7"
+    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "0.1.0 beta.8"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "Life Production Suite"
     WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
     WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
 
     SetShellVarContext all
-    CreateShortcut "$SMSTARTUP\LifeSWITCH Booth.lnk" "$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\LifeSWITCH-Tray.ps1"' "$INSTDIR\LifeSWITCH.ico"
-    CreateShortcut "$SMPROGRAMS\LifeSWITCH Booth.lnk" "$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\LifeSWITCH-Tray.ps1"' "$INSTDIR\LifeSWITCH.ico"
+    CreateShortcut "$SMSTARTUP\LifeSWITCH Booth.lnk" "$INSTDIR\LifeSWITCH-Tray.exe" "" "$INSTDIR\LifeSWITCH.ico"
+    CreateShortcut "$SMPROGRAMS\LifeSWITCH Booth.lnk" "$INSTDIR\LifeSWITCH-Tray.exe" "" "$INSTDIR\LifeSWITCH.ico"
     ExecShell "open" "$WINDIR\explorer.exe" '"$SMPROGRAMS\LifeSWITCH Booth.lnk"'
 
     cancelled:
