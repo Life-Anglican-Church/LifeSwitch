@@ -54,6 +54,8 @@ public final class MainActivity extends Activity {
     private JSONObject state;
     private boolean active, reading, sending, armed, serviceBusy, simulator, uncertain;
     private long commandEpoch;
+    private boolean updateCheckStarted;
+    private AndroidUpdates pendingUpdate;
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -153,6 +155,45 @@ public final class MainActivity extends Activity {
         state = null;
         update();
         poll.run();
+        if (!updateCheckStarted) {
+            updateCheckStarted = true;
+            new Thread(() -> {
+                try {
+                    android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+                    long version = android.os.Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
+                    AndroidUpdates available = AndroidUpdates.check(version);
+                    ui.post(() -> {
+                        pendingUpdate = available;
+                        offerUpdate();
+                    });
+                } catch (Exception ignored) {
+                    // GitHub availability never gates booth control.
+                }
+            }, "LifeSWITCH update check").start();
+        }
+    }
+
+    @Override public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        if (focused) offerUpdate();
+    }
+
+    private void offerUpdate() {
+        if (pendingUpdate == null || !active || armed || sending || !hasWindowFocus() ||
+                isFinishing() || isDestroyed()) return;
+        AndroidUpdates available = pendingUpdate;
+        pendingUpdate = null;
+        new AlertDialog.Builder(this)
+            .setTitle("LifeSWITCH update available")
+            .setMessage("Version " + available.version + " is available on GitHub.")
+            .setNegativeButton("Later", null)
+            .setPositiveButton("Download", (dialog, choice) -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(available.downloadUrl)));
+                } catch (android.content.ActivityNotFoundException error) {
+                    android.widget.Toast.makeText(this, "No browser available to download the update.", android.widget.Toast.LENGTH_LONG).show();
+                }
+            }).show();
     }
 
     @Override protected void onPause() {

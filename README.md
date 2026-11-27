@@ -18,3 +18,7 @@ The service uses the MIT-licensed atem-connection library. LifeSWITCH changes it
 
 - Android toolchain is Android API 35, build tools 35.0.0, Java, the ZXing Core 3.5.3 JAR, and a signing keystore. Run `android/build.sh` with the environment variables documented in that script.
 - For Windows packaging, run `npm ci` in `booth`, then run `windows/package.sh exe` from the project root with NSIS (makensis), Python with Pillow, a Windows x64 Node ZIP, and a WinSW x64 executable. To build the legacy ZIP, run `windows/package.sh zip`. The current bundle uses Node.js 22.22.2 and WinSW 2.12.0.
+
+### Publish an Android update
+
+The Android app checks `releases/android-update.json` on the public `beta-downloads` branch at startup. Publish the signed `LifeSWITCH-Android-<versionName>.apk` and update this JSON in the same commit. Set `versionCode` and `versionName` to the values in the APK manifest. Increase `versionCode` and sign with the existing Android signing key so devices can update in place. The app offers the download when the published version code is higher.
