@@ -54,6 +54,7 @@ public final class MainActivity extends Activity {
     private JSONObject state;
     private boolean active, reading, sending, armed, serviceBusy, simulator, uncertain;
     private long commandEpoch;
+    private boolean awaitingReadback;
     private boolean updateCheckStarted;
     private AndroidUpdates pendingUpdate;
 
@@ -345,6 +346,7 @@ public final class MainActivity extends Activity {
                 ui.post(() -> {
                     reading = false;
                     if (!active || !session.equals(id) || epoch != commandEpoch) return;
+                    awaitingReadback = false;
                     if (answer == null) {
                         state = null;
                         if (armed || sending) {
@@ -399,7 +401,7 @@ public final class MainActivity extends Activity {
     }
 
     private void command(String name, JSONObject payload) {
-        if (!active || state == null || sending || serviceBusy || (!name.equals("arm") && !armed)) return;
+        if (!active || state == null || sending || awaitingReadback || serviceBusy || (!name.equals("arm") && !armed)) return;
         sending = true;
         commandEpoch++;
         feedback.setText(name.equals("arm") ? "Arming Live control…" : "Waiting for ATEM confirmation…");
@@ -427,7 +429,7 @@ public final class MainActivity extends Activity {
                     if (name.equals("arm")) armed = true;
                     sending = false;
                     uncertain = false;
-                    state = null; // Require fresh switcher readback before another tap.
+                    awaitingReadback = true; // Keep the rendered snapshot while waiting for fresh readback.
                     feedback.setText(name.equals("arm") ? "" : "ATEM state confirmed");
                 }
                 update();
@@ -436,18 +438,18 @@ public final class MainActivity extends Activity {
     }
 
     private void update() {
-        status.setText(state == null ? (host.isEmpty() ? "Set up a booth connection" : "Switcher status unavailable")
+        setTextIfChanged(status, state == null ? (host.isEmpty() ? "Set up a booth connection" : "Switcher status unavailable")
             : simulator ? "Simulator  •  No physical ATEM" : "ATEM connected  •  Watch the booth multiview");
-        previewName.setText(state == null ? "—" : sourceName(state.optInt("preview")));
-        programName.setText(state == null ? "—" : sourceName(state.optInt("program")));
+        setTextIfChanged(previewName, state == null ? "—" : sourceName(state.optInt("preview")));
+        setTextIfChanged(programName, state == null ? "—" : sourceName(state.optInt("program")));
         feedback.setVisibility(feedback.length() == 0 ? View.GONE : View.VISIBLE);
-        arm.setText(armed ? "Live control on · Turn off" : "Monitor only · Enable Live control");
-        arm.setEnabled(armed || state != null && !sending && !serviceBusy);
-        boolean enabled = armed && state != null && !sending && !serviceBusy;
+        setTextIfChanged(arm, armed ? "Live control on · Turn off" : "Monitor only · Enable Live control");
+        arm.setEnabled(armed || state != null && !sending && !awaitingReadback && !serviceBusy);
+        boolean enabled = armed && state != null && !sending && !awaitingReadback && !serviceBusy;
         cut.setEnabled(enabled && !state.optBoolean("transitioning"));
         auto.setEnabled(enabled && !state.optBoolean("transitioning"));
         dsk.setEnabled(enabled);
-        dsk.setText("DSK 1 · Lower thirds" + (state == null ? ""
+        setTextIfChanged(dsk, "DSK 1 · Lower thirds" + (state == null ? ""
             : state.optBoolean("dsk") ? " · On air" : " · Off air"));
         int preview = state == null ? -1 : state.optInt("preview");
         int program = state == null ? -1 : state.optInt("program");
@@ -455,12 +457,19 @@ public final class MainActivity extends Activity {
             int id = i + 1;
             Button tile = sources.get(i);
             JSONObject input = findInput(id);
-            tile.setText(input == null ? "Input " + id : id + " · " + input.optString("name", "Input"));
+            setTextIfChanged(tile, input == null ? "Input " + id : id + " · " + input.optString("name", "Input"));
             int border = id == preview ? GREEN : id == program ? ACCENT : Color.rgb(106, 54, 66);
-            tile.setBackground(surface(PANEL, border));
+            if (!Integer.valueOf(border).equals(tile.getTag())) {
+                tile.setBackground(surface(PANEL, border));
+                tile.setTag(border);
+            }
             tile.setSelected(id == preview);
             tile.setEnabled(enabled && input != null);
         }
+    }
+
+    private static void setTextIfChanged(TextView view, String text) {
+        if (!text.contentEquals(view.getText())) view.setText(text);
     }
 
     private JSONObject findInput(int id) {
