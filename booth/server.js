@@ -38,6 +38,11 @@ atem?.on('disconnected', () => {
   lease = null
 })
 
+function physicalInputs(raw) {
+  return Object.values(raw?.inputs || {})
+    .filter(input => input.internalPortType === Enums.InternalPortType.External)
+}
+
 function state() {
   if (config.simulator) {
     return { ...simulated, inputs: Array.from({ length: 8 }, (_, i) => ({ id: i + 1, name: 'Input ' + (i + 1) })) }
@@ -46,8 +51,7 @@ function state() {
   const me = raw?.video.mixEffects[0]
   const key = raw?.video.downstreamKeyers[0]
   if (!connected || !me || !key) return null
-  const inputs = Object.values(raw.inputs)
-    .filter(input => input.portType === Enums.InternalPortType.External)
+  const inputs = physicalInputs(raw)
     .map(input => ({ id: input.inputId, name: input.longName || input.shortName || 'Input ' + input.inputId }))
     .sort((a, b) => a.id - b.id)
   if (!inputs.length) return null
@@ -192,7 +196,7 @@ function localStatus(req, res) {
       protocolVersion: raw?.info?.apiVersion || null,
       mixEffect: Boolean(raw?.video?.mixEffects?.[0]),
       downstreamKey1: Boolean(raw?.video?.downstreamKeyers?.[0]),
-      physicalInputs: Object.values(raw?.inputs || {}).filter(input => input.portType === Enums.InternalPortType.External).length,
+      physicalInputs: physicalInputs(raw).length,
       lastTransportMessage,
       lastError,
     },

@@ -7,11 +7,11 @@ RequestExecutionLevel admin
 SilentInstall silent
 InstallDir "$PROGRAMFILES64\LifeSWITCH"
 Icon "${PAYLOAD_DIR}\LifeSWITCH.ico"
-VIProductVersion "0.1.0.6"
+VIProductVersion "0.1.0.7"
 VIAddVersionKey "ProductName" "LifeSWITCH Booth"
 VIAddVersionKey "FileDescription" "LifeSWITCH Booth Setup"
-VIAddVersionKey "FileVersion" "0.1.0 beta.6"
-VIAddVersionKey "ProductVersion" "0.1.0 beta.6"
+VIAddVersionKey "FileVersion" "0.1.0 beta.7"
+VIAddVersionKey "ProductVersion" "0.1.0 beta.7"
 VIAddVersionKey "CompanyName" "Life Production Suite"
 VIAddVersionKey "LegalCopyright" "Life Production Suite"
 SetCompressor /SOLID lzma
@@ -57,7 +57,7 @@ Section Install
     WriteUninstaller "$INSTDIR\Uninstall-LifeSWITCH.exe"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "LifeSWITCH Booth"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall-LifeSWITCH.exe"'
-    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "0.1.0 beta.6"
+    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "0.1.0 beta.7"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "Life Production Suite"
     WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
     WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
